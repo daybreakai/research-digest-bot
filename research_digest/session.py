@@ -87,7 +87,7 @@ AGENT_TOOLS = [
 ]
 
 
-def run_session(user_id: str, message: str, store: GDriveStateStore) -> str:
+def run_session(user_id: str, message: str, store: GDriveStateStore, on_session_created=None) -> str:
     """
     Create a Managed Agent session for one user invocation, stream it to completion,
     and return the session ID for thread tracking.
@@ -97,6 +97,11 @@ def run_session(user_id: str, message: str, store: GDriveStateStore) -> str:
         environment_id=ENV_ID,
         title="Research digest — {}".format(user_id),
     )
+
+    # Call the callback immediately after session creation, before blocking on stream
+    # This lets callers register the session_id while the session is still active
+    if on_session_created is not None:
+        on_session_created(session.id)
 
     first_message = (
         "[user_id: {}]\n\n"

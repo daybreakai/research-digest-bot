@@ -8,8 +8,8 @@ def handle_custom_tool(
     store: GDriveStateStore,
 ) -> str:
     """Dispatch an agent.custom_tool_use event to the state store. Returns JSON or status string."""
-    user_id: str = tool_input["user_id"]
     try:
+        user_id: str = tool_input["user_id"]
         if tool_name == "get_seen_papers":
             return json.dumps(store.get_seen_papers(user_id))
         elif tool_name == "save_seen_papers":

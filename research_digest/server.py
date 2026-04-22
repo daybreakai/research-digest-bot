@@ -52,15 +52,15 @@ async def slack_digest(
 
 
 def _run_and_register(user_id, message):
+    def _register(session_id):
+        _active_sessions[user_id] = session_id
+
     try:
-        # run_session is synchronous and blocking. By the time it returns, the session
-        # is complete. For v1, we clean up stale entries to avoid incorrect routing.
-        # Note: _active_sessions routing via /slack/events only works for truly async
-        # sessions (future work). For now, we ensure cleanup after completion.
-        run_session(user_id=user_id, message=message, store=_store)
+        run_session(user_id=user_id, message=message, store=_store, on_session_created=_register)
     except Exception as exc:
         print("Session error for {}: {}".format(user_id, exc), file=sys.stderr)
     finally:
+        # Session is complete (run_session returned) — clean up stale entry
         _active_sessions.pop(user_id, None)
 
 
