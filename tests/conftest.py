@@ -11,6 +11,23 @@ def _make_media(content: dict) -> bytes:
     return json.dumps(content).encode()
 
 
+def _wire_folder_traversal(mock_drive, folder_ids: list, file_id=None):
+    """
+    Simulate folder resolution: users_folder → user_folder → optional file lookup.
+    folder_ids: [users_folder_id, user_folder_id]
+    file_id: the file found (or None = not found)
+    """
+    list_side_effects = [
+        _make_file_list([folder_ids[0]]),
+        _make_file_list([folder_ids[1]]),
+    ]
+    if file_id is not None:
+        list_side_effects.append(_make_file_list([file_id]))
+    else:
+        list_side_effects.append(_make_file_list([]))
+    mock_drive.files.return_value.list.return_value.execute.side_effect = list_side_effects
+
+
 @pytest.fixture
 def mock_drive():
     return MagicMock()
@@ -26,4 +43,4 @@ def mock_store(mock_drive):
             credentials_path="fake/path.json",
             root_folder_id="root_id",
         )
-    return store
+        yield store   # yield, not return

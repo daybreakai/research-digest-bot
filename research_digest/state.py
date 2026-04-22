@@ -70,7 +70,7 @@ class GDriveStateStore:
 
     def _write_json(self, filename: str, folder_id: str, data: dict) -> None:
         content = json.dumps(data, indent=2).encode()
-        media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
+        media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json", chunksize=-1)
         file_id = self._get_file_id(filename, folder_id)
         if file_id:
             self._drive.files().update(fileId=file_id, media_body=media).execute()
