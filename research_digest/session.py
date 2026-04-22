@@ -1,12 +1,21 @@
 import os
+import sys
 import anthropic
 from research_digest.state import GDriveStateStore
 from research_digest.tools import handle_custom_tool
 
 client = anthropic.Anthropic()
 
-AGENT_ID = os.environ.get("AGENT_ID", "")
-ENV_ID   = os.environ.get("ENV_ID", "")
+
+def _require_env(name: str) -> str:
+    val = os.environ.get(name, "")
+    if not val:
+        print("WARNING: {} not set — run setup.py first".format(name), file=sys.stderr)
+    return val
+
+
+AGENT_ID = _require_env("AGENT_ID")
+ENV_ID   = _require_env("ENV_ID")
 
 AGENT_TOOLS = [
     {"type": "agent_toolset_20260401"},
@@ -111,7 +120,7 @@ def run_session(user_id: str, message: str, store: GDriveStateStore) -> str:
         for event in stream:
             if event.type == "agent.message":
                 for block in event.content:
-                    if hasattr(block, "text"):
+                    if block.type == "text":
                         print(block.text, end="", flush=True)
             elif event.type == "agent.tool_use":
                 print("\n  [{}]".format(event.name), flush=True)
@@ -119,8 +128,10 @@ def run_session(user_id: str, message: str, store: GDriveStateStore) -> str:
                 pending_tools.append(event)
             elif event.type == "session.status_idle":
                 if pending_tools:
-                    _service_tools(session.id, pending_tools, store)
-                    pending_tools.clear()
+                    try:
+                        _service_tools(session.id, pending_tools, store)
+                    finally:
+                        pending_tools.clear()
                     # Stay in stream — agent will resume
                 else:
                     print("\n")
