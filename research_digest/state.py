@@ -72,7 +72,7 @@ class GDriveStateStore:
         content = json.dumps(data, indent=2).encode()
         buf = io.BytesIO(content)
         media = MediaIoBaseUpload(buf, mimetype="application/json", chunksize=-1)
-        media._fd.seek(0)
+        buf.seek(0)
         file_id = self._get_file_id(filename, folder_id)
         if file_id:
             self._drive.files().update(fileId=file_id, media_body=media).execute()
