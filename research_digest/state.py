@@ -70,7 +70,9 @@ class GDriveStateStore:
 
     def _write_json(self, filename: str, folder_id: str, data: dict) -> None:
         content = json.dumps(data, indent=2).encode()
-        media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json", chunksize=-1)
+        buf = io.BytesIO(content)
+        media = MediaIoBaseUpload(buf, mimetype="application/json", chunksize=-1)
+        media._fd.seek(0)
         file_id = self._get_file_id(filename, folder_id)
         if file_id:
             self._drive.files().update(fileId=file_id, media_body=media).execute()
@@ -98,3 +100,29 @@ class GDriveStateStore:
             e["id"] for e in data.get("seen", [])
             if datetime.fromisoformat(e["seen_at"]) > cutoff
         ]
+
+    def save_seen_papers(self, user_id: str, ids: List[str]) -> None:
+        """Append new paper IDs with current UTC timestamp; skip duplicates."""
+        folder = self._user_folder(user_id)
+        existing = self._read_json(_SEEN_FILE, folder) or {"seen": []}
+        existing_ids = {e["id"] for e in existing["seen"]}
+        now = datetime.now(timezone.utc).isoformat()
+        for paper_id in ids:
+            if paper_id not in existing_ids:
+                existing["seen"].append({"id": paper_id, "seen_at": now})
+        self._write_json(_SEEN_FILE, folder, existing)
+
+    def get_user_prefs(self, user_id: str) -> dict:
+        """Return {'topics': [{keyword, weight}]}. History is never returned."""
+        folder = self._user_folder(user_id)
+        data = self._read_json(_PREFS_FILE, folder)
+        if not data:
+            return {"topics": [t.copy() for t in DEFAULT_TOPICS]}
+        return {"topics": data.get("topics", [t.copy() for t in DEFAULT_TOPICS])}
+
+    def save_user_prefs(self, user_id: str, topics: List[dict]) -> None:
+        """Replace topics array. The history array is preserved unchanged."""
+        folder = self._user_folder(user_id)
+        existing = self._read_json(_PREFS_FILE, folder) or {"topics": [], "history": []}
+        existing["topics"] = topics
+        self._write_json(_PREFS_FILE, folder, existing)
