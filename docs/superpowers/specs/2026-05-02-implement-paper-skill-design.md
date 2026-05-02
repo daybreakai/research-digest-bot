@@ -106,7 +106,7 @@ If **at all unclear**, enter a dedicated sub-interview:
 Continue the sub-interview until the control spec is fully explicit: model name, configuration, and any relevant hyperparameters. The user must approve the control before the skill proceeds. **No implementation plan is written until the control is airtight.**
 
 **5. Benchmark config**
-> "Run weekly only, monthly only, or both? Standard metrics are RMSE, MAE, ME (bias), and wMAPE — any additions or changes?"
+> "Run weekly only, monthly only, or both? What horizons should I benchmark? (e.g. `[4, 8, 13]` for weekly or `[3, 6, 12]` for monthly — I'll run a separate cross-validation pass for each.) Standard metrics are RMSE, MAE, ME (bias), and wMAPE — any additions or changes? Default is 3 CV folds per horizon; want more?"
 
 **6. Success criterion**
 > "What result would mark this experiment as `verdict: confirmed`? (e.g., >5% MAE improvement on intermittent series over the control)"
@@ -129,6 +129,8 @@ papers: "[Title](url)"
 **Framework:** [chosen lib(s)]
 **Control:** [exact control spec]
 **Benchmark:** weekly + monthly, 10k series each
+**Horizons:** [e.g. 4, 8, 13]
+**CV folds:** [n_windows, default 3]
 **Success criterion:** [from interview step 6]
 
 ### Method Mapping
@@ -196,7 +198,22 @@ Triggered by invoking `/implement-paper <url>` a second time. The skill detects 
 | ME (bias) | mean(ŷ−y) | Signed bias; positive = over-forecast |
 | wMAPE | Σ\|ŷ−y\| / Σy | Scale-free; handles zeros better than MAPE |
 
-`benchmark.py` runs both the **control** and the **implementation** on identical train/test splits. Results table reports all four metrics for both runs plus Δ (implementation − control). Negative Δ = improvement for RMSE/MAE/wMAPE; ME Δ sign interpreted separately (direction of bias shift matters).
+**Cross-validation protocol:**
+
+Each horizon in the user-supplied list is benchmarked independently. For each `h` in `horizons`:
+
+- Call `.cross_validation(df, h=h, step_size=h, n_windows=n_windows)` — `step_size=h` produces equally spaced, non-overlapping folds
+- `n_windows` defaults to 3; user can override in the interview
+- Run identically for both control and implementation
+
+Library-specific API notes (all support this pattern):
+- `StatsForecast.cross_validation(df, h=h, step_size=h, n_windows=n_windows)`
+- `MLForecast.cross_validation(df, h=h, step_size=h, n_windows=n_windows)`
+- `NeuralForecast.cross_validation(df, step_size=h, n_windows=n_windows)` — `h` is set at model init, not here
+
+Results are averaged across folds (mean of per-fold metrics) before being broken out by `series_type`. The full `results.json` retains per-fold detail for deeper inspection.
+
+**Results shape:** one results block per horizon × frequency combination. E.g. `horizons=[4, 8, 12]` with both frequencies → 6 result blocks.
 
 ### README.md Structure
 
@@ -219,14 +236,22 @@ Triggered by invoking `/implement-paper <url>` a second time. The skill detects 
 
 ## Results
 
-### Weekly (10k series)
+One block per horizon × frequency. E.g. for `horizons=[4, 8]`, weekly + monthly:
+
+### Weekly · h=4 (3 folds, avg)
 | Series Type | Control RMSE | Impl RMSE | Δ | Control MAE | Impl MAE | Δ | Control ME | Impl ME | Δ | Control wMAPE | Impl wMAPE | Δ |
 |...
 
-### Monthly (10k series)
-| Series Type | Control RMSE | Impl RMSE | Δ | Control MAE | Impl MAE | Δ | Control ME | Impl ME | Δ | Control wMAPE | Impl wMAPE | Δ |
+### Weekly · h=8 (3 folds, avg)
+_(same columns)_
+
+### Monthly · h=4 (3 folds, avg)
+_(same columns)_
+
+_(etc.)_
 
 **Series mix:** 30% intermittent · 25% heavy-tailed · 25% non-constant variance · 20% high-selling
+**CV:** equally spaced folds, `step_size=h`, metrics averaged across folds
 
 ## Verdict
 
