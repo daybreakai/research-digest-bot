@@ -106,7 +106,7 @@ If **at all unclear**, enter a dedicated sub-interview:
 Continue the sub-interview until the control spec is fully explicit: model name, configuration, and any relevant hyperparameters. The user must approve the control before the skill proceeds. **No implementation plan is written until the control is airtight.**
 
 **5. Benchmark config**
-> "Run weekly only, monthly only, or both? Any specific error metrics beyond RMSE/MAE you want reported?"
+> "Run weekly only, monthly only, or both? Standard metrics are RMSE, MAE, ME (bias), and wMAPE — any additions or changes?"
 
 **6. Success criterion**
 > "What result would mark this experiment as `verdict: confirmed`? (e.g., >5% MAE improvement on intermittent series over the control)"
@@ -163,14 +163,23 @@ Triggered by invoking `/implement-paper <url>` a second time. The skill detects 
 
 ### Synthetic Benchmark
 
+**Design goal:** Resemble the M5 dataset in behavior — noisy, low-signal retail series with realistic zero structure, promotional spikes, calendar effects, and heavy right-skew. Not a smooth academic benchmark.
+
 **Series archetypes (10k series per frequency, split by proportion):**
 
 | Type | Generation | Proportion |
 |---|---|---|
-| Intermittent | Bernoulli arrivals (p=0.3–0.5) × lognormal magnitudes | 30% |
-| Heavy-tailed | Negative binomial, high dispersion, occasional spikes | 25% |
-| Non-constant variance | Trend + multiplicative seasonal noise, ARCH-like volatility | 25% |
-| High-selling | High-volume smooth trend + additive noise, low CV | 20% |
+| Intermittent | Bernoulli demand arrivals (p=0.2–0.4, M5-like zero density); non-zero magnitudes from lognormal; occasional promotional spikes 3–8× base | 30% |
+| Heavy-tailed | Negative binomial with high dispersion; base demand low, periodic large bursts (event/holiday analog); right-skew matches M5 item-level distributions | 25% |
+| Non-constant variance | Slow-moving trend (up or down) + multiplicative weekly/annual seasonality + ARCH-like noise bursts; variance scales with level | 25% |
+| High-selling | High base volume, smooth trend, additive noise; lower CV but still noisy; represents steady top-sellers | 20% |
+
+**Shared realism layers applied to all archetypes (M5-style):**
+- **Holiday/event spikes:** ~8 randomly placed spike events per series per year (1.5–4× multiplier, decaying over 1–2 periods after)
+- **Level shifts:** ~1–2 permanent step changes per series (item delisting / restock / store-open analog)
+- **Price sensitivity analog:** random promotional periods with demand lift (not modeled as a feature, just baked into `y`)
+- **Zero floor:** all values clipped to 0 — no negative demand
+- **Integer demand:** final `y` values rounded to non-negative integers (M5 is unit-sales count data)
 
 - **Weekly:** 10k series, 156 time points (~3 years), freq `W`
 - **Monthly:** 10k series, 36 time points (~3 years), freq `MS`
@@ -178,7 +187,16 @@ Triggered by invoking `/implement-paper <url>` a second time. The skill detects 
 - Deterministic via fixed seed (reproducible across runs)
 - `series_type` column preserved through to results so metrics can be sliced by archetype
 
-`benchmark.py` runs both the **control** and the **implementation** on identical train/test splits. Results are reported as RMSE and MAE per `series_type`, plus aggregate, plus delta (implementation − control). Negative delta = improvement.
+**Evaluation metrics** (all reported per `series_type` and aggregate):
+
+| Metric | Formula | Purpose |
+|---|---|---|
+| RMSE | √mean((ŷ−y)²) | Penalizes large errors; sensitive to spikes |
+| MAE | mean(\|ŷ−y\|) | Robust central error |
+| ME (bias) | mean(ŷ−y) | Signed bias; positive = over-forecast |
+| wMAPE | Σ\|ŷ−y\| / Σy | Scale-free; handles zeros better than MAPE |
+
+`benchmark.py` runs both the **control** and the **implementation** on identical train/test splits. Results table reports all four metrics for both runs plus Δ (implementation − control). Negative Δ = improvement for RMSE/MAE/wMAPE; ME Δ sign interpreted separately (direction of bias shift matters).
 
 ### README.md Structure
 
@@ -202,11 +220,11 @@ Triggered by invoking `/implement-paper <url>` a second time. The skill detects 
 ## Results
 
 ### Weekly (10k series)
-| Series Type | Control RMSE | Impl RMSE | Δ | Control MAE | Impl MAE | Δ |
+| Series Type | Control RMSE | Impl RMSE | Δ | Control MAE | Impl MAE | Δ | Control ME | Impl ME | Δ | Control wMAPE | Impl wMAPE | Δ |
 |...
 
 ### Monthly (10k series)
-| Series Type | Control RMSE | Impl RMSE | Δ | Control MAE | Impl MAE | Δ |
+| Series Type | Control RMSE | Impl RMSE | Δ | Control MAE | Impl MAE | Δ | Control ME | Impl ME | Δ | Control wMAPE | Impl wMAPE | Δ |
 
 **Series mix:** 30% intermittent · 25% heavy-tailed · 25% non-constant variance · 20% high-selling
 
