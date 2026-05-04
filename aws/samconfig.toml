@@ -1,0 +1,14 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name          = "alfred-bot"
+resolve_s3          = true
+region              = "us-east-1"
+capabilities        = "CAPABILITY_IAM"
+parameter_overrides = [
+  "SlackBotToken=${SLACK_BOT_TOKEN}",
+  "SlackSigningSecret=${SLACK_SIGNING_SECRET}",
+  "AnthropicApiKey=${ANTHROPIC_API_KEY}",
+  "AlfredAgentId=${ALFRED_AGENT_ID}",
+  "EnvId=${ENV_ID}",
+]

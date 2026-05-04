@@ -2,4 +2,17 @@ credentials/
 .env
 __pycache__/
 *.pyc
+*.pyo
 .pytest_cache/
+.DS_Store
+
+# AWS SAM build artifacts, deployment zips, and compiled Lambda packages
+aws/.aws-sam/
+aws/**/*.zip
+aws/alfred_digest/package/
+aws/alfred_worker/package/
+
+# Skill runtime/user-specific data (not shared)
+.claude/skills/alfred/alfred-answered.json
+.claude/skills/research-brief/paper-feedback.json
+.claude/skills/research-brief/seen-papers.json

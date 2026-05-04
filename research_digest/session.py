@@ -14,8 +14,9 @@ def _require_env(name: str) -> str:
     return val
 
 
-AGENT_ID = _require_env("AGENT_ID")
-ENV_ID   = _require_env("ENV_ID")
+AGENT_ID        = _require_env("AGENT_ID")
+ALFRED_AGENT_ID = _require_env("ALFRED_AGENT_ID")
+ENV_ID          = _require_env("ENV_ID")
 
 AGENT_TOOLS = [
     {"type": "agent_toolset_20260401"},
@@ -148,6 +149,47 @@ def run_session(user_id: str, message: str, store: GDriveStateStore, on_session_
                 break
 
     return session.id
+
+
+def run_alfred_session(thread_ts: str, paper_url: str, question: str) -> str:
+    """
+    Create a one-shot Alfred managed agent session for a single @alfred question.
+    Returns the agent's reply text.
+    """
+    session = client.beta.sessions.create(
+        agent=ALFRED_AGENT_ID,
+        environment_id=ENV_ID,
+        title="Alfred — {}".format(thread_ts),
+    )
+
+    message = (
+        "[thread_ts: {}]\n"
+        "[paper_url: {}]\n\n"
+        "{}"
+    ).format(thread_ts, paper_url, question)
+
+    reply_parts = []
+
+    with client.beta.sessions.events.stream(session.id) as stream:
+        client.beta.sessions.events.send(
+            session.id,
+            {"events": [{
+                "type": "user.message",
+                "content": [{"type": "text", "text": message}],
+            }]},
+        )
+
+        for event in stream:
+            if event.type == "agent.message":
+                for block in event.content:
+                    if block.type == "text":
+                        reply_parts.append(block.text)
+            elif event.type in ("session.status_terminated", "session.error"):
+                break
+            elif event.type == "session.status_idle":
+                break
+
+    return "".join(reply_parts).strip()
 
 
 def _service_tools(session_id: str, pending: list, store: GDriveStateStore) -> None:

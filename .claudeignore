@@ -1,0 +1,25 @@
+# Compiled / cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Lambda deployment zips
+aws/**/*.zip
+aws/alfred_worker.zip
+
+# AWS infra / deploy config (not relevant to app logic)
+aws/deploy.sh
+aws/deploy_worker.sh
+aws/samconfig.toml
+aws/template.yaml
+
+# Credentials / secrets
+credentials/
+
+# Superpowers docs (plans, specs — not source code)
+docs/superpowers/
+
+# Tests (usually not needed when working on core logic)
+# tests/

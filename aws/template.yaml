@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Alfred — real-time paper Q&A bot for #research-digest
+
+Parameters:
+  SlackBotToken:
+    Type: String
+    NoEcho: true
+  SlackSigningSecret:
+    Type: String
+    NoEcho: true
+  AnthropicApiKey:
+    Type: String
+    NoEcho: true
+  AlfredAgentId:
+    Type: String
+  EnvId:
+    Type: String
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Environment:
+      Variables:
+        SLACK_BOT_TOKEN:      !Ref SlackBotToken
+        SLACK_SIGNING_SECRET: !Ref SlackSigningSecret
+        ANTHROPIC_API_KEY:    !Ref AnthropicApiKey
+        ALFRED_AGENT_ID:      !Ref AlfredAgentId
+        ENV_ID:               !Ref EnvId
+        ALFRED_CHANNEL_ID:    C0AT9D2UYUX
+
+Resources:
+
+  AlfredWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: alfred-worker
+      CodeUri: alfred_worker/
+      Handler: handler.lambda_handler
+      MemorySize: 512
+      Timeout: 300
+      Role: arn:aws:iam::367182071075:role/alfred-worker-role
+
+  AlfredWebhookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: alfred-webhook
+      CodeUri: alfred_webhook/
+      Handler: handler.lambda_handler
+      MemorySize: 128
+      Timeout: 10
+      Role: arn:aws:iam::367182071075:role/alfred-webhook-role
+      Environment:
+        Variables:
+          WORKER_FUNCTION_NAME: !Ref AlfredWorkerFunction
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: BUFFERED
+
+Outputs:
+  WebhookUrl:
+    Description: Paste this into Slack app Event Subscriptions
+    Value: !GetAtt AlfredWebhookFunctionUrl.FunctionUrl
